@@ -1,7 +1,7 @@
 library(tidyverse)
 library(readxl)
 file_path<-file.path("C:","Users","S410U","Documents","GitHub","RStudio","Country Summary",sep="/")
-#For reproducibility
+# For reproducibility. Change path according to desktop.
 Country_Summary<-list.files(file_path)
 Country_Summary<-paste(rep(file_path,length(Country_Summary)),Country_Summary,sep="")
 cs<-lapply(Country_Summary,read_csv)
@@ -27,7 +27,7 @@ ISO3Code$ISO_3_fixed[ISO3Code$ISO_3_fixed=="SER"]<-"SRB"
 library(countrycode)
 ISO3Code$ISO_3n<-countrycode(ISO3Code$ISO_3_fixed,"iso3c","iso3n",nomatch=NULL)
 ISO3Code<-filter(ISO3Code,!is.na(ISO_3n))%>%select(Reporter,ISO_3,ISO_3n)
-#Saving for future reference
+#Saving for future reference. Available in RDS folder.
 saveRDS(ISO3Code,"C:/Users/S410U/Documents/RStudio/ISO3Code.rds")
 
 country_iso_code<-inner_join(ISO3Code,cs1)

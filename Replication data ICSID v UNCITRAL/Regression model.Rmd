@@ -1,0 +1,65 @@
+---
+title: "Regression"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df<-readRDS("UNCTAD_prep.rds")
+```
+
+```{r, echo=FALSE}
+df<-select(df,arbitral_rule_dummy,v2x_libdempryr,v2x_libdemcurryr,v2mecenefipryr,v2meceneficurryr,executive_contraintpryr,executive_contraintcurryr,court_independencepryr,court_independencecurryr,exec_court_compliancecurryr,exec_court_compliancepryr,log_claim,post_2014,pryr_gnipercap.x,pryr_gnipercap.y,curryr_gnipercap.x,curryr_gnipercap.y,ICSID,UNCITRAL,doc_public,hearing_public,amicus_reg,nondis_reg,curr_cost_perc_claim.x,pryr_cost_perc_claim.x,remedy_limit,provision_limit_ISDS,policyarea_limit_ISDS,claim_scope,alleged1,alleged2,alleged3,alleged4,alleged5,alleged6,alleged7,alleged8,alleged9,alleged10,alleged11,alleged12,incomeLevel_x,incomeLevel_y,v2jucorrdcpryr,v2jucorrdccurryr,is_OECD,is_OECD_inv,no_award_claim,rtr="Right to regulate",v2x_libdem_invpryr,v2x_libdem_invcurryr,long_lived,no_amount_claimed)
+```
+
+Model 1: Testing pryr judicial corruption
+```{r}
+model1<-glm(arbitral_rule_dummy~v2jucorrdcpryr+no_amount_claimed+long_lived+post_2014+is_OECD+v2x_libdempryr+pryr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+Model 2: Testing executive_contraintpryr
+```{r}
+model2<-glm(arbitral_rule_dummy~executive_contraintpryr+log_claim+post_2014+is_OECD+v2x_libdempryr+pryr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+
+Model 3: Testing court_independencepryr
+```{r}
+model3<-glm(arbitral_rule_dummy~court_independencepryr+log_claim+post_2014+is_OECD+v2x_libdempryr+pryr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+
+Model 4: Testing exec_court_compliancepryr:
+```{r}
+glm(arbitral_rule_dummy~exec_court_compliancepryr+log_claim+post_2014+is_OECD+v2x_libdempryr+pryr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+
+
+Model 5: Testing jucorrdccurryr:
+
+```{r}
+model4<-glm(arbitral_rule_dummy~v2jucorrdccurryr+log_claim+post_2014+is_OECD+v2x_libdemcurryr+curr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+Model 6: Testing executive contraintcurryr:
+
+```{r}
+model5<-glm(arbitral_rule_dummy~executive_contraintcurryr+log_claim+post_2014+is_OECD+v2x_libdemcurryr+curr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+Model 7: Testing court_independencecurryr:
+
+```{r}
+model6<-glm(arbitral_rule_dummy~court_independencecurryr+log_claim+post_2014+is_OECD+v2x_libdemcurryr+curr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```
+
+
+Model 8: Testing exec_court_compliancecurryr:
+
+```{r}
+model6<-glm(arbitral_rule_dummy~exec_court_compliancecurryr+log_claim+post_2014+is_OECD+v2x_libdemcurryr+curr_cost_perc_claim.x+remedy_limit+provision_limit_ISDS+incomeLevel_x+rtr,data=df,family=binomial)
+```

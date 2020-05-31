@@ -1,0 +1,474 @@
+---
+title: "BIT arbitration - Second step"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(purrr)
+library(tidyverse)
+```
+
+```{r}
+UNCSTAD_with_trade<-readRDS("C:/R/My Scripts/UNCSTAD_with_trade.rds")
+```
+
+
+```{r}
+UNCSTAD_with_trade$award_upheld<-ifelse((UNCSTAD_with_trade$`Award/decision upheld ICSID annulment proceedings_PROCEEDING STATUS`==1|UNCSTAD_with_trade$`Award/decision upheld Judicial review by national courts_PROCEEDING STATUS`==1),1,0)
+
+UNCSTAD_with_trade$annuled_entirety<-ifelse((UNCSTAD_with_trade$`Award/decision annulled in its entirety ICSID annulment proceedings_PROCEEDING STATUS`==1|UNCSTAD_with_trade$`Award/decision set aside in its entirety Judicial review by national courts_PROCEEDING STATUS`==1),1,0)
+
+UNCSTAD_with_trade$partially_annuled<-ifelse((UNCSTAD_with_trade$`Award/decision partially set aside Judicial review by national courts_PROCEEDING STATUS`==1|UNCSTAD_with_trade$`Award/decision partially annulled ICSID annulment proceedings_PROCEEDING STATUS`==1),1,0)
+
+UNCSTAD_with_trade$`Review proceeding discontinued`<-ifelse((UNCSTAD_with_trade$`Settled ICSID resubmission proceedings_PROCEEDING STATUS`==1|UNCSTAD_with_trade$`Discontinued Judicial review by national courts_PROCEEDING STATUS`==1),1,0)
+```
+
+```{r}
+FDI_restrict_index_pryr<-read_csv("C:/R/My Scripts/FDI Restrictiveness Index.csv")%>%select(LOCATION,Sector=`Sector / Industry`,`Prior Year`=Year,Value)%>%filter(Sector%in%c("Primary","Secondary","Tertiary","Total FDI Index"))
+#Note that prior year is the actual year
+
+FDI_restrict_index_pryr$LOCATION<-tolower(FDI_restrict_index_pryr$LOCATION)
+
+FDI_restrict_index_pryr<-pivot_wider(FDI_restrict_index_pryr,names_from=Sector,values_from=Value,names_prefix="pryr")%>%mutate(`Prior Year`=`Prior Year`+1)
+```
+```{r}
+UNCSTAD_w_trade_FDI<-left_join(UNCSTAD_with_trade,FDI_restrict_index_pryr,by=c("YEAR OF INITIATION"="Prior Year","iso3Code_x"="LOCATION"))%>%left_join(FDI_restrict_index_pryr,by=c("YEAR OF INITIATION"="Prior Year","iso3Code_y"="LOCATION"))
+```
+
+```{r}
+FDI_restrict_index_curr<-read_csv("C:/R/My Scripts/FDI Restrictiveness Index.csv")%>%select(LOCATION,Sector=`Sector / Industry`,`Current Year`=Year,Value)%>%filter(Sector%in%c("Primary","Secondary","Tertiary","Total FDI Index"))
+
+FDI_restrict_index_curr$LOCATION<-tolower(FDI_restrict_index_curr$LOCATION)
+
+FDI_restrict_index_curr<-pivot_wider(FDI_restrict_index_curr,names_from=Sector,values_from=Value,names_prefix="curr")
+```
+
+```{r}
+UNCSTAD_w_trade_FDI<-left_join(UNCSTAD_w_trade_FDI,FDI_restrict_index_curr,by=c("YEAR OF INITIATION"="Current Year","iso3Code_x"="LOCATION"))%>%left_join(FDI_restrict_index_curr,by=c("YEAR OF INITIATION"="Current Year","iso3Code_y"="LOCATION"))
+```
+
+Note: Data from IIA Mapping Project, courtest of Professor Tarald Berge.
+```{r}
+IIA_context<-read_excel("C:/R/My Scripts/UNCTAD_IIA3.xlsx")
+
+remove<-colnames(IIA_context)[str_detect(colnames(IIA_context),"Column")]
+
+IIA_context<-IIA_context%>%select(-remove)
+
+for (item in c("Inconclusive","Not applicable","No reference","No clause","No expropriation clause","NA")){
+IIA_context[IIA_context==item]<-"None"}
+
+for (column in colnames(IIA_context)){
+  if (is.element("Yes",IIA_context[[column]])){
+    IIA_context[[column]]<-ifelse(IIA_context[[column]]=="Yes",1,0)
+  }else{next}
+}
+
+
+to_be_factored<-c("Type of FET clause","Definition of investments","FP standard or domestic law","Indirect expropriation mentioned","Strife relative compensation","Performance requirements","Type of PR","Scope of claims","Type of consent","RELATIONSHIP")
+
+for (column in to_be_factored){
+  IIA_context[[column]]<-factor(IIA_context[[column]],exclude=NULL)
+}
+
+IIA_context<-IIA_context%>%filter(Status!="Signed",`Treaty.type`=="Bilateral Investment Treaties")
+
+IIA_context$Termination_year<-str_extract(IIA_context$Date.of.termination,"\\d\\d\\d\\d")
+
+removed<-c("Treaty.type","Date.of.entry.into.force","Date.of.signature","Date.of.termination","Case.number","Status","Language","SDi2...Includes.permanent.residents","SDi2...Excludes.dual.nationals","SDb...No.diplomatic.relations","SDb...Discretionary.or.mandatory","I...Mechanism.for.consultations","I...Institutional.framework","I...Technical.cooperation","T...Years.of.initial.term","T...Automatic.renewal","T...Modalities.for.unilateral.termination","T...Length.of.notice.period","T...Modalidies.for.amendment.and.renegotiation","T...Sunset.clause","META...Originally.mapped","META...Mapped.by","META...Mapped.by","META...UNCTAD.nr")
+
+IIA_context<-IIA_context%>%select(-removed)
+
+IIA_context$`Does coexist with another agreement`<-ifelse(IIA_context$`Does coexist with another agreement`=="NA",0,1)
+```
+```{r}
+removed2<-c("Data not available_FOUND","Pending_FOUND","None_PROCEEDING STATUS","Settled ICSID resubmission proceedings_PROCEEDING STATUS","Award/decision partially set aside Judicial review by national courts_PROCEEDING STATUS","Award/decision partially annulled ICSID annulment proceedings_PROCEEDING STATUS","Award/decision annulled in its entirety ICSID annulment proceedings_PROCEEDING STATUS","Award/decision upheld Judicial review by national courts_PROCEEDING STATUS","Award/decision set aside in its entirety Judicial review by national courts_PROCEEDING STATUS","Award/decision upheld ICSID annulment proceedings_PROCEEDING STATUS","Discontinued Judicial review by national courts_PROCEEDING STATUS","ICSID annulment proceedings_PROCEEDING TYPE","ICSID resubmission proceedings_PROCEEDING TYPE","Judicial review by national courts_PROCEEDING TYPE","None recorded_PROCEEDING TYPE","BREACHES ALLEGED","BREACHES FOUND","SUMMARY OF THE DISPUTE","DETAILS OF INVESTMENT","NO.")
+UNCSTAD_w_trade_FDI<-UNCSTAD_w_trade_FDI%>%select(-removed2)
+UNCSTAD_IIA_merged<-inner_join(UNCSTAD_w_trade_FDI,IIA_context,by=c("APPLICABLE IIA"="Title"))
+```
+
+```{r}
+saveRDS(UNCSTAD_IIA_merged,file="C:/R/My Scripts/UNCSTAD_IIAcontent_merged.rds")
+```
+
+```{r,echo=FALSE}
+UNCSTAD_IIA_merged<-readRDS("C:/R/My Scripts/UNCSTAD_IIAcontent_merged.rds")
+```
+
+```{r}
+UNCSTAD_IIA_merged$no_award_claimed<-ifelse(is.na(UNCSTAD_IIA_merged$`AWARD CLAIMED IN US MILLION`),1,0)
+UNCSTAD_IIA_merged$log_claim<-log(as.numeric(UNCSTAD_IIA_merged$`AWARD CLAIMED IN US MILLION`))
+UNCSTAD_IIA_merged$award_claim_ratio<-as.numeric(UNCSTAD_IIA_merged$`AWARD RECEIVED IN US MILLION`)/as.numeric(UNCSTAD_IIA_merged$`AWARD CLAIMED IN US MILLION`)
+```
+
+```{r}
+easeb_list<-list.files(path="C:/R/My Scripts/Ease business")
+easeb_pryr<-list()
+i<-1
+for (element in easeb_list){
+  file_path<-file.path("C:/R/My Scripts/Ease business",element)
+  easeb_year<-read_excel(file_path,sheet="Results")
+  easeb_year<-easeb_year%>%select(Country="Economy","Year","pryr_cost_perc_claim"="Enforcing Contracts - Cost (% of claim)","pryr_days_enforce"="Enforcing Contracts - Time (days)","pryr_judicialprocess_quality"="Enforcing Contracts - Quality of judicial processes index (0-18) (DB17-20 methodology)","pryr_alt_dispute_settle"="Enforcing Contracts - Alternative dispute resolution (0-3) (DB17-20 methodology)")
+  easeb_pryr[[i]]<-easeb_year
+  i<-i+1
+}
+easeb_df_pryr<-do.call(rbind,easeb_pryr)
+easeb_df_pryr$Year<-as.numeric(str_remove(easeb_df_pryr$Year,"DB"))
+easeb_df_pryr$NextYear<-easeb_df_pryr$Year+1
+```
+
+```{r}
+easeb_curryr<-list()
+i<-1
+for (element in easeb_list){
+  file_path<-file.path("Ease business",element)
+  easeb_year<-read_excel(file_path,sheet="Results")
+  easeb_year<-easeb_year%>%select(Country="Economy","Year","curr_cost_perc_claim"="Enforcing Contracts - Cost (% of claim)","curr_days_enforce"="Enforcing Contracts - Time (days)","curr_judicialprocess_quality"="Enforcing Contracts - Quality of judicial processes index (0-18) (DB17-20 methodology)","curr_alt_dispute_settle"="Enforcing Contracts - Alternative dispute resolution (0-3) (DB17-20 methodology)")
+  easeb_curryr[[i]]<-easeb_year
+  i<-i+1
+}
+easeb_df_curryr<-do.call(rbind,easeb_curryr)
+easeb_df_curryr$Year<-as.numeric(str_remove(easeb_df_curryr$Year,"DB"))
+```
+
+
+```{r}
+ISO3char<-read_excel("C:/R/My Scripts/ISO 3 character.xlsx")
+ISO3char<-distinct(ISO3char)
+easeb_pryr_w_ISO<-inner_join(ISO3char,easeb_df_pryr)%>%select(-"Country")
+easeb_pryr_w_ISO$`Country Code`<-tolower(easeb_pryr_w_ISO$`Country Code`)
+easeb_curryr_w_ISO<-inner_join(ISO3char,easeb_df_curryr)%>%select(-"Country")
+easeb_curryr_w_ISO$`Country Code`<-tolower(easeb_curryr_w_ISO$`Country Code`)
+```
+
+
+```{r}
+UNCSTAD_IIA_Ease<-inner_join(UNCSTAD_IIA_merged,easeb_pryr_w_ISO,by=c("iso3Code_x"="Country Code","YEAR OF INITIATION"="NextYear"))%>%inner_join(easeb_pryr_w_ISO,by=c("iso3Code_y"="Country Code","YEAR OF INITIATION"="NextYear"))
+```
+
+```{r}
+UNCSTAD_IIA_Ease<-inner_join(UNCSTAD_IIA_Ease,easeb_curryr_w_ISO,by=c("iso3Code_x"="Country Code","YEAR OF INITIATION"="Year"))%>%inner_join(easeb_curryr_w_ISO,by=c("iso3Code_y"="Country Code","YEAR OF INITIATION"="Year"))%>%select(-"Year.x","Year.y")
+```
+
+```{r}
+UNCSTAD_IIA_Ease$`STATUS/OUTCOME OF ORIGINAL PROCEEDINGS`[UNCSTAD_IIA_Ease$`STATUS/OUTCOME OF ORIGINAL PROCEEDINGS`%in%c("Data not available","Pending","Discontinued for unknown reasons")]<-NA
+```
+
+```{r}
+UNCSTAD_IIA_Ease$`STATUS/OUTCOME OF ORIGINAL PROCEEDINGS`<-factor(UNCSTAD_IIA_Ease$`STATUS/OUTCOME OF ORIGINAL PROCEEDINGS`,exclude=NULL)
+UNCSTAD_IIA_Ease$`ARBITRAL RULES`<-factor(UNCSTAD_IIA_Ease$`ARBITRAL RULES`)
+```
+
+Importing in World Bank data: using wBI package; output converted to rds for ease for running the program
+
+```{r}
+WB_data<-readRDS("C:/R/My Scripts/wb_data.rds")
+```
+
+```{r}
+WB_data$loggnipercap<-log(WB_data$`pryr GNI per cap (PPP $)`)
+logsqrt<-function(x){log(x+sqrt(1+x^2))}
+WB_data$logsqrt_fdigdp<-logsqrt(WB_data$`pryr Net FDI inflow (% of GDP`)
+WB_data$Next_year<-WB_data$year+1
+WB_data$iso3c<-tolower(WB_data$iso3c)
+```
+
+```{r}
+UNCSTAD_IIA_Ease_WB<-left_join(UNCSTAD_IIA_Ease,select(WB_data,"iso3c","Next_year","pryr_loggnipercap"="loggnipercap","pryr_logsqrt_fdigdp"="logsqrt_fdigdp","pryr_nat_res_rent_percGDP"="pryr Natural resource rent (% of GDP)","pryr_gnipercap"="pryr GNI per cap (PPP $)","pryr_netfdi_percGDP"="pryr Net FDI inflow (% of GDP)"),by=c("YEAR OF INITIATION"="Next_year","iso3Code_x"="iso3c"))
+UNCSTAD_IIA_Ease_WB<-left_join(UNCSTAD_IIA_Ease_WB,select(WB_data,"iso3c","Next_year","pryr_loggnipercap"="loggnipercap","pryr_gnipercap"="pryr GNI per cap (PPP $)"),by=c("YEAR OF INITIATION"="Next_year","iso3Code_y"="iso3c"))
+```
+
+```{r}
+civilcommon<-read_excel("C:/R/My Scripts/Common civil law.xlsx")
+civilcommon$`Legal system`<-ifelse(str_detect(civilcommon$`Legal system`,"mix"),"mix",ifelse(str_detect(civilcommon$`Legal system`,"common"),"common",ifelse(str_detect(civilcommon$`Legal system`,"civil"),"civil",NA)))
+UNCSTAD_IIA_Ease_WB_law<-inner_join(UNCSTAD_IIA_Ease_WB,civilcommon,by=c("RESPONDENT STATE"="Country"))
+UNCSTAD_IIA_Ease_WB_law$`Legal system`<-factor(UNCSTAD_IIA_Ease_WB_law$`Legal system`,exclude=NULL)
+```
+
+
+
+```{r}
+UNCSTAD_IIA_Ease_WB_law$arbitral_rule_dummy<-ifelse(UNCSTAD_IIA_Ease_WB_law$`ARBITRAL RULES`=="UNCITRAL",1,0)
+UNCSTAD_IIA_Ease_WB_law$incomeLevel_x<-factor(UNCSTAD_IIA_Ease_WB_law$incomeLevel_x,exclude=NULL)
+```
+
+```{r}
+VDEM<-readRDS("C:/R/My Scripts/VDEM_abbrv.rds")
+VDEM$country_text_id<-tolower(VDEM$country_text_id)
+VDEM$next_year<-VDEM$year+1
+VDEM$executive_contraint<-(VDEM$v2x_jucon+VDEM$v2xlg_legcon)/2
+VDEM$court_independence<-(VDEM$v2juncind+VDEM$v2juhcind)/2
+VDEM$exec_court_compliance<-(VDEM$v2juhccomp+VDEM$v2jucomp)/2
+```
+
+```{r}
+UNCSTAD_IIA_Ease_WB_law<-left_join(UNCSTAD_IIA_Ease_WB_law,select(VDEM,-"year"),by=c("YEAR OF INITIATION"="next_year","iso3Code_x"="country_text_id"))
+UNCSTAD_IIA_Ease_WB_law_VDEM<-left_join(UNCSTAD_IIA_Ease_WB_law,select(VDEM,-"next_year"),by=c("YEAR OF INITIATION"="year","iso3Code_x"="country_text_id"),suffix=c("pryr","curryr"))
+```
+
+```{r}
+alleged<-str_subset(colnames(UNCSTAD_IIA_Ease_WB_law_VDEM),"ALLEGED")
+alleged_id<-1
+alleged_abrv<-c()
+for (element in alleged){
+  alleged_name<-paste0("alleged",alleged_id)
+  alleged_abrv[[alleged_id]]<-alleged_name
+  alleged_id<-alleged_id+1}
+for (id in 1:length(alleged)){
+  colnames(UNCSTAD_IIA_Ease_WB_law_VDEM)[colnames(UNCSTAD_IIA_Ease_WB_law_VDEM)==alleged[id]]<-alleged_abrv[id]}
+alleged_correspondence<-data.frame(allegation=alleged,abbreviation=alleged_abrv)
+```
+
+```{r}
+UNCSTAD_prep<-UNCSTAD_IIA_Ease_WB_law_VDEM%>%mutate(tot_num_claims=alleged1+alleged2+alleged3+alleged4+alleged5+alleged6+alleged7+alleged8+alleged9+alleged10+alleged11+alleged12,tot_sector=`Primary_SECTOR`+`Secondary_SECTOR`+`Tertiary_SECTOR`)%>%filter(tot_num_claims>0,tot_sector>0)
+```
+
+```{r}
+found<-str_subset(colnames(UNCSTAD_IIA_Ease_WB_law_VDEM),"FOUND")
+found_id<-1
+found_abrv<-c()
+for (element in found){
+  found_name<-paste0("found",found_id)
+  found_abrv[[found_id]]<-found_name
+  found_id<-found_id+1}
+for (id in 1:length(found)){
+  colnames(UNCSTAD_prep)[colnames(UNCSTAD_prep) == found[id]]<-found_abrv[id]}
+found_correspondence<-data.frame(verdict=found,abbreviation=found_abrv)
+```
+
+```{r}
+UNCSTAD_prep$curr_days_enforce.x<-as.numeric(UNCSTAD_prep$curr_days_enforce.x)
+UNCSTAD_prep$curr_cost_perc_claim.x<-as.numeric(UNCSTAD_prep$curr_cost_perc_claim.x)
+```
+
+```{r}
+UNCSTAD_prep$pryr_days_enforce.x<-as.numeric(UNCSTAD_prep$pryr_days_enforce.x)
+UNCSTAD_prep$pryr_cost_perc_claim.x<-as.numeric(UNCSTAD_prep$pryr_cost_perc_claim.x)
+```
+
+```{r}
+transparency_requirement<-c("Requires documents to be made public","Requires hearings to be public","Regulates amicus curiae submissions","Regulates submissions by non - disputing State party","Scope of claims","Limitation of provisions to ISDS","Exclusion of policy areas to ISDS","Limited type remedies","Primary_SECTOR","Secondary_SECTOR","Tertiary_SECTOR","Domestic courts","STATUS/OUTCOME OF ORIGINAL PROCEEDINGS")
+
+trans_abbrv<-c("doc_public","hearing_public","amicus_reg","nondis_reg","claim_scope","provision_limit_ISDS","policyarea_limit_ISDS","remedy_limit","sector_primary","sector_secondary","sector_tertiary","dom_court","status")
+#provision_limit_ISDS ssf
+
+i<-1
+for (element in transparency_requirement){
+  colnames(UNCSTAD_prep)[colnames(UNCSTAD_prep)==element]<-trans_abbrv[i]
+  i<-i+1
+}
+```
+
+```{r}
+UNCSTAD_prep$"post_2014"<-ifelse(UNCSTAD_prep$`YEAR OF INITIATION`>2014,1,0)
+```
+
+Note: correcting a mistake
+```{r}
+UNCSTAD_prep$`FINAL DECISION DATE`[UNCSTAD_prep$`FINAL DECISION DATE`=="2089"]<-"2015"
+UNCSTAD_prep$`FINAL DECISION DATE`[UNCSTAD_prep$`FINAL DECISION DATE`=="2070"]<-"2014"
+UNCSTAD_prep$`FINAL DECISION DATE`<-as.numeric(UNCSTAD_prep$`FINAL DECISION DATE`)
+```
+
+```{r pressure, echo=FALSE}
+history<-UNCSTAD_prep%>%filter(!is.na(`FINAL DECISION DATE`))
+history<-select(history,"ARBITRAL RULES",arbitral_rule_dummy,"final_decision"=`FINAL DECISION DATE`,alleged1:alleged12,found1:found15,award_claim_ratio,tot_num_claims,status)
+```
+
+```{r}
+alleged_correspondence$allegation<-str_remove(alleged_correspondence$allegation," _ALLEGED")
+```
+
+
+```{r}
+found_correspondence$verdict<-str_remove(found_correspondence$verdict,"_FOUND")
+```
+
+
+```{r}
+allegation_found<-full_join(alleged_correspondence,found_correspondence,by=c("allegation"="verdict"))
+```
+
+```{r}
+history$notcaught1<-ifelse(history$alleged1>history$found3,1,0)
+history$notcaught2<-ifelse(history$alleged2>history$found4,1,0)
+history$notcaught3<-ifelse(history$alleged3>history$found6,1,0)
+history$notcaught4<-ifelse(history$alleged4>history$found7,1,0)
+history$notcaught5<-ifelse(history$alleged5>history$found8,1,0)
+history$notcaught6<-ifelse(history$alleged6>history$found9,1,0)
+history$notcaught7<-ifelse(history$alleged7>history$found10,1,0)
+history$notcaught8<-ifelse(history$alleged8>history$found12,1,0)
+history$notcaught9<-ifelse(history$alleged9>history$found1,1,0)
+history$notcaught10<-ifelse(history$alleged10>history$found13,1,0)
+history$notcaught11<-ifelse(history$alleged11>history$found14,1,0)
+history$notcaught12<-ifelse(history$alleged12>history$found15,1,0)
+colnames(history)[colnames(history)=="found2"]<-"settled_discontinued"
+colnames(history)[colnames(history)=="found11"]<-"juris_declined"
+colnames(history)[colnames(history)=="found5"]<-"dismiss_merit"
+```
+
+```{r}
+testing<-history%>%pivot_longer(cols=c(notcaught1:notcaught12,dismiss_merit,settled_discontinued,juris_declined),names_to="outcome",values_to="yes")%>%select(-c(found1:found15),-arbitral_rule_dummy)%>%group_by(`ARBITRAL RULES`,final_decision,outcome)%>%summarize(no_of_cases=sum(yes))%>%pivot_wider(names_from=`ARBITRAL RULES`,values_from=no_of_cases)%>%arrange(final_decision,outcome)%>%filter(outcome=="dismiss_merit"|outcome=="juris_declined"|outcome=="settled_discontinued")%>%mutate_all(~replace(., is.na(.), 0))
+i<-1
+the_three<-list()
+for (element in unique(testing$outcome)){
+  new_icsid<-paste0("ICSID_",element)
+  new_uncitral<-paste0("UNCITRAL_",element)
+  colnames(testing)[str_detect(colnames(testing),"ICSID")]<-new_icsid
+  colnames(testing)[str_detect(colnames(testing),"UNCITRAL")]<-new_uncitral
+  the_three[[i]]<-filter(testing,outcome==element)%>%select(-outcome)
+  i<-i+1
+}
+merger<-do.call(cbind,the_three)%>%select(-final_decision1,-final_decision2)%>%mutate(next_year=final_decision+1)
+```
+
+
+
+
+```{r}
+testing2<-history%>%select(`ARBITRAL RULES`,final_decision,status)%>%group_by(`ARBITRAL RULES`,final_decision,status)%>%tally()%>%drop_na()%>%pivot_wider(names_from=`ARBITRAL RULES`,values_from=n)
+testing2$UNCITRAL[is.na(testing2$UNCITRAL)]<-0
+testing2$`ICSID(AF)`[is.na(testing2$`ICSID(AF)`)]<-0
+```
+
+```{r}
+old_status<-c("Decided in favour of State","Decided in favour of investor","Neither investor nor the State (liability found but no damages awarded)","Settled")
+testing2<-filter(testing2,status%in%old_status)%>%droplevels()%>%mutate(status=fct_recode(status,state_fav="Decided in favour of State",inv_fav="Decided in favour of investor",res_settled="Settled",no_liability="Neither investor nor the State (liability found but no damages awarded)"))
+```
+
+```{r}
+the_four<-list()
+i<-1
+for (element in unique(testing2$status)){
+  new_icsid<-paste0("ICSID_results_",element)
+  new_uncitral<-paste0("UNCITRAL_results_",element)
+  colnames(testing2)[str_detect(colnames(testing2),"ICSID")]<-new_icsid
+  colnames(testing2)[str_detect(colnames(testing2),"UNCITRAL")]<-new_uncitral
+  the_four[[i]]<-filter(testing2,status==element)%>%select(-status)
+  i<-i+1
+}
+```
+
+```{r}
+library(purrr)
+merger2<-the_four%>%reduce(full_join,by="final_decision")%>%mutate(next_year=final_decision+1)
+merger2[is.na(merger2)]<-0
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,select(merger2,-final_decision),by=c("YEAR OF INITIATION"="next_year"))
+```
+
+
+```{r}
+colnames(UNCSTAD_prep)[colnames(UNCSTAD_prep)=="Decided in favour of the investor ICSID resubmission proceedings_PROCEEDING STATUS"]<-"resub_inv_fav_ic"
+colnames(UNCSTAD_prep)[colnames(UNCSTAD_prep)=="Neither investor nor the State (liability found but no damages awarded) ICSID resubmission proceedings_PROCEEDING STATUS"]<-"no_liability_ic"
+colnames(UNCSTAD_prep)[colnames(UNCSTAD_prep)=="FINAL DECISION DATE WITH FOLLOW - ON"]<-"final_decision_follow"
+```
+
+UNCSTAD_prep$partially_annuled
+UNCSTAD_prep$annuled_entirety
+UNCSTAD_prep$award_upheld
+
+```{r}
+testing3<-UNCSTAD_prep%>%select(final_decision_follow,arb_rule=`ARBITRAL RULES`,partially_annuled,annuled_entirety,award_upheld)%>%filter(!is.na(final_decision_follow))
+testing3<-testing3%>%pivot_longer(cols=c(partially_annuled:award_upheld),names_to="follow_on_outcome",values_to="Yes")%>%group_by(final_decision_follow,arb_rule,follow_on_outcome)%>%summarize(total=sum(Yes))%>%pivot_wider(names_from=arb_rule,values_from=total)
+testing3$UNCITRAL[is.na(testing3$UNCITRAL)]<-0
+testing3$`ICSID(AF)`[is.na(testing3$`ICSID(AF)`)]<-0
+```
+
+```{r}
+the_fifth<-list()
+i<-1
+for (element in unique(testing3$follow_on_outcome)){
+  new_icsid<-paste0("ICSID_follow_",element)
+  new_uncitral<-paste0("UNCITRAL_follow_",element)
+  colnames(testing3)[str_detect(colnames(testing3),"ICSID")]<-new_icsid
+  colnames(testing3)[str_detect(colnames(testing3),"UNCITRAL")]<-new_uncitral
+  the_fifth[[i]]<-filter(testing3,follow_on_outcome==element)%>%select(-follow_on_outcome)
+  i<-i+1
+}
+```
+
+```{r}
+merger3<-the_fifth%>%reduce(full_join,by="final_decision_follow")%>%mutate(next_year=final_decision_follow+1)
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,select(merger3,-final_decision_follow),by=c("YEAR OF INITIATION"="next_year"))
+```
+
+```{r}
+testing4<-history%>%select(arb_rule='ARBITRAL RULES',final_decision,notcaught1:notcaught12)
+testing4<-testing4%>%pivot_longer(cols=c(notcaught1:notcaught12),names_to="outcomecaught",values_to="Yes")%>%group_by(final_decision,outcomecaught,arb_rule)%>%summarize(total=sum(Yes))%>%pivot_wider(names_from=arb_rule,values_from=total)
+```
+
+```{r}
+the_sixth<-list()
+i<-1
+for (element in unique(testing4$outcomecaught)){
+  new_icsid<-paste0("ICSID_",element)
+  new_uncitral<-paste0("UNCITRAL_",element)
+  colnames(testing4)[str_detect(colnames(testing4),"ICSID")]<-new_icsid
+  colnames(testing4)[str_detect(colnames(testing4),"UNCITRAL")]<-new_uncitral
+  the_sixth[[i]]<-filter(testing4,outcomecaught==element)%>%select(-outcomecaught)
+  i<-i+1
+}
+```
+
+```{r}
+merger4<-the_sixth%>%reduce(full_join,by="final_decision")%>%mutate(next_year=final_decision+1)
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,select(merger4,-final_decision),by=c("YEAR OF INITIATION"="next_year"))
+```
+
+```{r}
+OECD<-read_excel("C:/R/My Scripts/OECD states.xlsx")
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,OECD,by=c("iso3Code_x"="ccode"))
+UNCSTAD_prep$is_OECD<-ifelse(UNCSTAD_prep$`YEAR OF INITIATION`>UNCSTAD_prep$oecd_date,1,0)
+UNCSTAD_prep$is_OECD[is.na(UNCSTAD_prep$is_OECD)]<-0
+UNCSTAD_prep<-UNCSTAD_prep%>%select(-oecd_date)
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,OECD,by=c("iso3Code_y"="ccode"))
+UNCSTAD_prep$is_OECD_inv<-ifelse(UNCSTAD_prep$`YEAR OF INITIATION`>UNCSTAD_prep$oecd_date,1,0)
+UNCSTAD_prep$is_OECD_inv[is.na(UNCSTAD_prep$is_OECD_inv)]<-0
+UNCSTAD_prep<-UNCSTAD_prep%>%select(-oecd_date)
+```
+
+```{r}
+VDEM_inv<-readRDS("C:/R/My Scripts/VDEM_abbrv.rds")
+VDEM_inv$country_text_id<-tolower(VDEM_inv$country_text_id)
+VDEM_inv$next_year<-VDEM_inv$year+1
+VDEM_inv$executive_contraint<-(VDEM_inv$v2x_jucon+VDEM_inv$v2xlg_legcon)/2
+VDEM_inv$court_independence<-(VDEM_inv$v2juncind+VDEM_inv$v2juhcind)/2
+VDEM_inv$exec_court_compliance_inv<-(VDEM_inv$v2juhccomp+VDEM_inv$v2jucomp)/2
+for (element in colnames(VDEM_inv)){
+  colnames(VDEM_inv)[colnames(VDEM_inv)==element]<-paste0(element,"_inv")
+}
+```
+
+```{r}
+UNCSTAD_prep<-left_join(UNCSTAD_prep,select(VDEM_inv,-"year_inv"),by=c("YEAR OF INITIATION"="next_year_inv","iso3Code_y"="country_text_id_inv"))
+UNCSTAD_prep<-left_join(UNCSTAD_prep,select(VDEM_inv,-"next_year_inv"),by=c("YEAR OF INITIATION"="year_inv","iso3Code_y"="country_text_id_inv"),suffix=c("pryr","curryr"))
+```
+
+```{r}
+UNCSTAD_prep$long_lived<-ifelse(((UNCSTAD_prep$sector_primary>0)|(UNCSTAD_prep$sector_secondary>0)),1,0)
+```
+
+```{r}
+saveRDS(UNCSTAD_prep,"C:/R/My Scripts/UNCTAD_prep.rds")
+```
+
